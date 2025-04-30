@@ -17,9 +17,6 @@ SCREEN_WIDTH = info.current_w
 SCREEN_HEIGHT = info.current_h
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
 
-
-# SCREEN_WIDTH = 1000
-# SCREEN_HEIGHT = 750
 KEY_WIDTH = 100
 KEY_HEIGHT = 40
 KEY_SPACING = 50
