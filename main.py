@@ -71,7 +71,7 @@ def run_game():
     sprites = {k: load_sprite(path) for k, path in sprite_paths.items()}
 
     keys = create_keys(sprites)
-    player = Player(selected_color)
+    player = Player(selected_color, SCREEN_WIDTH, SCREEN_HEIGHT)
     clock = pygame.time.Clock()
 
     if selected_music:

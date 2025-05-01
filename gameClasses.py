@@ -39,7 +39,7 @@ class Key:
 
 
 class Player:
-    def __init__(self, color):
+    def __init__(self, color, SCREEN_WIDTH, SCREEN_HEIGHT):
         self.__x = SCREEN_WIDTH // 2
         self.__y = SCREEN_HEIGHT // 2 + 50
         self.__width = 50
