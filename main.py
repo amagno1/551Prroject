@@ -4,7 +4,7 @@ import random
 import tkinter as tk
 from tkinter import ttk
 import os
-from gameClasses import Key, Player
+from gameClasses import Key, Player, FallingObject
 
 # Init pygame and mixer
 mixer.init()
@@ -50,7 +50,7 @@ def create_keys(sprites):
     y = 650
     for i, (c1, c2, code, label) in enumerate(config):
         x = start_x + i * (KEY_WIDTH + KEY_SPACING)
-        keys.append(Key(x, y, c1, c2, code, sprite=sprites.get(code), label=label))
+        keys.append(Key(x, y, code, sprite=sprites.get(code), label=label))
     return keys
 
 def load_music_options():
@@ -84,9 +84,48 @@ def run_game():
         except Exception as e:
             print(" Music playback failed:", e)
 
+    #Create the falling objects:
+    falling_objects = []
+    object_spawn_timer = 0
+    object_spawn_interval = 30  # frames between new objects
+    beat_interval = 500  # ms (adjust for music tempo)
+    last_beat_time = pygame.time.get_ticks()
+
+    score = 0
     running = True
     while running:
         screen.fill(BLACK)
+
+        # Falling Objects Logic
+        font = pygame.font.SysFont("Arial", 36)
+        score_text = font.render(f"Score: {score}", True, (255, 255, 255))
+        screen.blit(score_text, (20, 20))
+        object_spawn_timer += 1
+        if object_spawn_timer >= object_spawn_interval:
+            falling_objects.append(FallingObject(SCREEN_WIDTH))
+            object_spawn_timer = 0
+
+        for obj in falling_objects:
+            obj.update()
+            obj.draw(screen)
+        falling_objects = [obj for obj in falling_objects if obj.get_y() < SCREEN_HEIGHT + obj.get_radius()] #removes objects that fall of screen
+        current_time = pygame.time.get_ticks()
+
+        # Generates new object on beat
+        if current_time - last_beat_time >= beat_interval:
+            falling_objects.append(FallingObject(SCREEN_WIDTH))
+            last_beat_time = current_time
+
+        # Checks collision with player
+        for obj in falling_objects[:]:  # iterate over a copy of the list
+            obj.update()
+            obj.draw(screen)
+
+            if obj.get_rect().colliderect(player.get_rect()):
+                falling_objects.remove(obj)  # removes the object on collision
+                score += 5  # or any effect
+
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 mixer.music.stop()
