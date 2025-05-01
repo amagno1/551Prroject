@@ -33,6 +33,9 @@ class Key:
             text_rect = text.get_rect(center=(self.__x + KEY_WIDTH // 2, self.__y + KEY_HEIGHT + 20))
             surface.blit(text, text_rect)
 
+    def get_X(self):
+        return self.__x
+
     @property
     def key_code(self):
         return self.__key_code
@@ -94,10 +97,10 @@ class Player:
         return self.__rect
 
 class FallingObject:
-    def __init__(self, screen_width):
+    def __init__(self, xMin, xMax):
         self.__radius = 20
         self.__color = (255, 100, 100)
-        self.__x = random.randint(0, screen_width - self.__radius)
+        self.__x = random.randint(xMin, xMax - self.__radius)
         self.__y = -self.__radius
         self.__speed = random.randint(3, 6)
         self.__rect = pygame.Rect(self.__x, self.__y, self.__radius * 2, self.__radius * 2)

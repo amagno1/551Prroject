@@ -71,6 +71,9 @@ def run_game():
     sprites = {k: load_sprite(path) for k, path in sprite_paths.items()}
 
     keys = create_keys(sprites)
+    #Limits the falling circles with the buttons' area
+    buttonStartX = keys[0].get_X()
+    buttonEndX = keys[-1].get_X() + KEY_WIDTH
     player = Player(selected_color, SCREEN_WIDTH, SCREEN_HEIGHT)
     clock = pygame.time.Clock()
 
@@ -102,7 +105,7 @@ def run_game():
         screen.blit(score_text, (20, 20))
         object_spawn_timer += 1
         if object_spawn_timer >= object_spawn_interval:
-            falling_objects.append(FallingObject(SCREEN_WIDTH))
+            falling_objects.append(FallingObject(buttonStartX, buttonEndX))
             object_spawn_timer = 0
 
         for obj in falling_objects:
@@ -113,7 +116,7 @@ def run_game():
 
         # Generates new object on beat
         if current_time - last_beat_time >= beat_interval:
-            falling_objects.append(FallingObject(SCREEN_WIDTH))
+            falling_objects.append(FallingObject(buttonStartX, buttonEndX))
             last_beat_time = current_time
 
         # Checks collision with player
