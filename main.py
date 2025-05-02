@@ -5,17 +5,26 @@ import tkinter as tk
 from tkinter import ttk
 import os
 from gameClasses import Key, Player, FallingObject
+from PIL import Image, ImageTk  
+
+#Need to:
+# - resize objects
+# - make them smaller
+# - able to be destroyed 
+# - fall from middel
 
 # Init pygame and mixer
 mixer.init()
 pygame.init()
 
 # Globals
-#full resolution
 info = pygame.display.Info()
 SCREEN_WIDTH = info.current_w
 SCREEN_HEIGHT = info.current_h
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
+
+# Set up screen centered in the middle of the monitor
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+pygame.display.set_caption("Music Attack")
 
 KEY_WIDTH = 100
 KEY_HEIGHT = 40
@@ -27,8 +36,9 @@ selected_color = (100, 200, 255)
 selected_music = None
 selected_music_label = None
 MENU_MUSIC = "John Bartmann - Rainbow Boogie Space Funk.mp3"
+selected_sprite = None  # Store selected sprite path
 
-# Load button sprites 
+# Load sprite
 def load_sprite(path):
     try:
         sprite = pygame.image.load(path).convert_alpha()
@@ -47,7 +57,7 @@ def create_keys(sprites):
     ]
     total_width = 4 * KEY_WIDTH + 3 * KEY_SPACING
     start_x = (SCREEN_WIDTH - total_width) // 2
-    y = 650
+    y = SCREEN_HEIGHT - 150  # Center buttons near the bottom
     for i, (c1, c2, code, label) in enumerate(config):
         x = start_x + i * (KEY_WIDTH + KEY_SPACING)
         keys.append(Key(x, y, code, sprite=sprites.get(code), label=label))
@@ -59,6 +69,7 @@ def load_music_options():
     return [f for f in os.listdir("music") if f.endswith((".mp3", ".wav"))]
 
 def run_game():
+    # Set up the screen and clock
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Music Attack")
 
@@ -71,63 +82,80 @@ def run_game():
     sprites = {k: load_sprite(path) for k, path in sprite_paths.items()}
 
     keys = create_keys(sprites)
-    #Limits the falling circles with the buttons' area
-    buttonStartX = keys[0].get_X()
-    buttonEndX = keys[-1].get_X() + KEY_WIDTH
-    player = Player(selected_color, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    # Create the player object
+    front_sprite = "processed_sprites/chr1_fr1_no_border.gif"
+    back_sprite_1 = "processed_sprites/chr1_bk1_no_border.gif"
+    back_sprite_2 = "processed_sprites/chr1_bk2_no_border.gif"
+    player = Player(selected_color, front_sprite, back_sprite_1, back_sprite_2, SCREEN_WIDTH, SCREEN_HEIGHT)
+
     clock = pygame.time.Clock()
 
+    # Load the background image for the game
+    background_image_path = "path.png"
+    background_image = pygame.image.load(background_image_path).convert()
+    background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
+    # Load music
     if selected_music:
         music_path = os.path.join("music", selected_music)
         try:
-            print("Playing:", music_path)
             mixer.music.load(music_path)
             mixer.music.set_volume(1.0)
             mixer.music.play()
         except Exception as e:
-            print(" Music playback failed:", e)
+            print("Music playback failed:", e)
 
-    #Create the falling objects:
+    # Create the falling objects
     falling_objects = []
     object_spawn_timer = 0
-    object_spawn_interval = 30  # frames between new objects
-    beat_interval = 500  # ms (adjust for music tempo)
+    object_spawn_interval = 120
+    beat_interval = 500
     last_beat_time = pygame.time.get_ticks()
 
     score = 0
     running = True
-    while running:
-        screen.fill(BLACK)
 
-        # Falling Objects Logic
+    while running:
+        # Draw the background image first
+        screen.blit(background_image, (0, 0))
+
+        # Update falling objects and draw them
         font = pygame.font.SysFont("Arial", 36)
         score_text = font.render(f"Score: {score}", True, (255, 255, 255))
         screen.blit(score_text, (20, 20))
+
         object_spawn_timer += 1
         if object_spawn_timer >= object_spawn_interval:
-            falling_objects.append(FallingObject(buttonStartX, buttonEndX))
+            falling_objects.append(FallingObject(keys[random.randint(0, 3)].key_code, random.choice(["jump", "dodge", "slide", "attack"])))
             object_spawn_timer = 0
 
         for obj in falling_objects:
             obj.update()
             obj.draw(screen)
-        falling_objects = [obj for obj in falling_objects if obj.get_y() < SCREEN_HEIGHT + obj.get_radius()] #removes objects that fall of screen
-        current_time = pygame.time.get_ticks()
 
-        # Generates new object on beat
+        # Remove objects that fall off the screen
+        falling_objects = [obj for obj in falling_objects if obj.get_y() < SCREEN_HEIGHT + obj.get_radius()]
+
+        # Check for beat timing and spawn new objects
+        current_time = pygame.time.get_ticks()
         if current_time - last_beat_time >= beat_interval:
-            falling_objects.append(FallingObject(buttonStartX, buttonEndX))
+            falling_objects.append(FallingObject(keys[random.randint(0, 3)].key_code, random.choice(["jump", "dodge", "slide", "attack"])))
             last_beat_time = current_time
 
-        # Checks collision with player
-        for obj in falling_objects[:]:  # iterate over a copy of the list
+        # Check if the player presses the correct key while the object is in range
+        pressed = pygame.key.get_pressed()  # Get the keys that are pressed
+        for obj in falling_objects[:]:
             obj.update()
             obj.draw(screen)
 
-            if obj.get_rect().colliderect(player.get_rect()):
-                falling_objects.remove(obj)  # removes the object on collision
-                score += 5  # or any effect
+            if obj.collides_with(player):  # Check if the object is within the player's range
+                if pressed[obj.get_key_code()]:  # Check if the correct key is pressed
+                    falling_objects.remove(obj)  # Remove the object from the list
+                    score += 10  # Increase score when the correct key is pressed
 
+        # Draw the player health bar
+        player.draw_health_bar(screen)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -139,7 +167,6 @@ def run_game():
         player.update()
         player.draw(screen)
 
-        pressed = pygame.key.get_pressed()
         for key in keys:
             key.draw(screen, pressed[key.key_code])
 
@@ -149,7 +176,7 @@ def run_game():
     pygame.quit()
 
 def show_tkinter_menu():
-    global selected_color, selected_music, selected_music_label
+    global selected_color, selected_music, selected_music_label, selected_sprite
 
     root = tk.Tk()
     root.title("Music Attack Launcher")
@@ -163,73 +190,91 @@ def show_tkinter_menu():
     root.geometry(f"{window_width}x{window_height}+{x}+{y}")
     root.configure(bg="black")
 
+    # Load and set the background image for the menu screen using Pillow
+    background_image_path = "backg.jpg"  # Replace with the correct path to your background image
+    background_image = Image.open(background_image_path)  # Open the image using Pillow
+    background_image = background_image.resize((SCREEN_WIDTH, SCREEN_HEIGHT), Image.Resampling.LANCZOS)  # Resize to fit the screen
+
+    # Convert the image to a format Tkinter can handle
+    background_image_tk = ImageTk.PhotoImage(background_image)
+
+    # Add background image as a Label widget
+    background_label = tk.Label(root, image=background_image_tk)
+    background_label.place(x=0, y=0, relwidth=1, relheight=1)  # Set the background to fill the window
+    background_label.image = background_image_tk  # Keep a reference to avoid garbage collection
+
+    # Menu music loading
     menu_path = MENU_MUSIC if os.path.exists(MENU_MUSIC) else os.path.join("music", MENU_MUSIC)
     try:
         mixer.music.load(menu_path)
         mixer.music.play(-1)
     except Exception as e:
-        print(" Menu music failed to load:", e)
+        print("Menu music failed to load:", e)
 
     tk.Label(root, text="Music Attack", font=("Helvetica", 36), bg="black", fg="white").pack(pady=30)
 
-    preview = tk.Canvas(root, width=60, height=60, bg="black", highlightthickness=0)
-    preview.pack()
-    preview_id = preview.create_rectangle(5, 5, 55, 55, fill="#64c8ff", outline="white")
+    # Preview Canvas for character selection
+    preview = tk.Canvas(root, width=120, height=120, bg="black", highlightthickness=0)
+    preview.pack(pady=30)
 
-    color_options = {
-        "Blue": (100, 200, 255),
-        "Red": (255, 100, 100),
-        "Green": (100, 255, 100),
-        "Yellow": (255, 255, 100)
+    # Define sprite data (sprite paths for each character)
+    sprite_data = {
+        "Character 1": "processed_sprites/bmg3_fr1_no_border.gif",
+        "Character 2": "processed_sprites/ftr1_fr1_no_border.gif",
+        "Character 3": "processed_sprites/gsd1_fr1_no_border.gif",
+        "Character 4": "processed_sprites/chr1_fr1_no_border.gif"
     }
-    selected = tk.StringVar(value="Blue")
 
-    def update_color():
-        global selected_color
-        selected_color = color_options[selected.get()]
-        hex_color = "#%02x%02x%02x" % selected_color
-        preview.itemconfig(preview_id, fill=hex_color)
+    # To keep the selected sprite updated and shown in preview
+    def update_sprite(character_name):
+        global selected_sprite
+        selected_sprite = sprite_data[character_name]
+        
+        # Ensure the preview canvas is cleared before adding the new image
+        preview.delete("all")
+        
+        # Load and display the selected sprite in the preview
+        image = tk.PhotoImage(file=selected_sprite)  # Load the selected sprite
+        preview.create_image(60, 60, image=image)  # Place the sprite in the preview
+        preview.image = image  # Keep reference to prevent garbage collection
 
-    tk.Label(root, text="Character Color", font=("Helvetica", 18), bg="black", fg="white").pack(pady=(20, 10))
-    for name in color_options:
-        tk.Radiobutton(root, text=name, variable=selected, value=name,
-                       font=("Helvetica", 14), bg="black", fg="white",
-                       selectcolor="gray20", command=update_color).pack(anchor="center")
+    # Create labels for character selection (bullet points with sprite)
+    for character_name in sprite_data:
+        frame = tk.Frame(root, bg="black")
+        frame.pack(pady=5)
+        
+        # Load sprite and show as a label next to the character's name
+        img = tk.PhotoImage(file=sprite_data[character_name])  # Load the character's front sprite
+        sprite_label = tk.Label(frame, image=img, bg="black")
+        sprite_label.image = img  # Keep reference to avoid garbage collection
+        sprite_label.pack(side="left")
+        
+        # Character name label next to the sprite
+        name_label = tk.Label(frame, text=character_name, font=("Helvetica", 12), bg="black", fg="white")
+        name_label.pack(side="left")
 
-    def open_music_popup():
-        global selected_music, selected_music_label
-        popup = tk.Toplevel(root)
-        popup.title("Select Music")
-        popup.geometry("300x300")
-        popup.configure(bg="black")
+        # Bind click event to update selected sprite when clicked
+        sprite_label.bind("<Button-1>", lambda event, name=character_name: update_sprite(name))
 
-        tk.Label(popup, text="Choose a song:", font=("Helvetica", 16), bg="black", fg="white").pack(pady=10)
-        music_files = load_music_options()
-        music_choice = tk.StringVar(value=selected_music if selected_music else "")
+    def start_game():
+        global selected_music
+        selected_music = song_dropdown.get()  # Get selected music file
+        mixer.music.stop()
+        root.destroy()  # Close Tkinter menu and start the game
+        run_game()
 
-        for song in music_files:
-            tk.Radiobutton(popup, text=song, variable=music_choice, value=song,
-                           font=("Helvetica", 12), bg="black", fg="white",
-                           selectcolor="gray20").pack(anchor="w", padx=20)
-
-        def apply_choice():
-            global selected_music
-            selected_music = music_choice.get()
-            if selected_music_label:
-                selected_music_label.config(text=f"Selected: {selected_music}")
-            popup.destroy()
-
-        tk.Button(popup, text="Apply", font=("Helvetica", 12), command=apply_choice).pack(pady=20)
-
+    # Song selection
     tk.Label(root, text="Select Music", font=("Helvetica", 18), bg="black", fg="white").pack(pady=(30, 10))
-    tk.Button(root, text="Choose Music", font=("Helvetica", 14), command=open_music_popup).pack(pady=5)
-    selected_music_label = tk.Label(root, text="Selected: None", font=("Helvetica", 12), bg="black", fg="white")
-    selected_music_label.pack()
+    song_list = load_music_options()  # List of music files
+    song_dropdown = ttk.Combobox(root, values=song_list, state="readonly")
+    song_dropdown.set(song_list[0] if song_list else "")  # Default song
+    song_dropdown.pack(pady=10)
 
-    tk.Button(root, text="Start Game", font=("Helvetica", 20),
-              command=lambda: [mixer.music.stop(), root.destroy(), run_game()]).pack(pady=30)
-    tk.Button(root, text="Quit", font=("Helvetica", 16), command=root.quit).pack()
+    # Start Game and Exit buttons
+    tk.Button(root, text="Start Game", font=("Helvetica", 20), command=start_game).pack(pady=30)
+    tk.Button(root, text="Exit", font=("Helvetica", 16), command=root.quit).pack()
 
+    # Run the Tkinter menu
     root.mainloop()
 
 # Launch the menu
