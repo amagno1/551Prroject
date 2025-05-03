@@ -84,6 +84,14 @@ class Player:
         self.__jump_count = 0
         self.__jump_height = 60
 
+    # Getter for health
+    def get_health(self):
+        return self.__health
+
+    # Setter for health
+    def set_health(self, health):
+        self.__health = health
+
     @property
     def rect(self):
         """Access the rect of the player"""
@@ -141,56 +149,49 @@ class Player:
         pygame.draw.rect(surface, (0, 255, 0), (health_bar_x, health_bar_y, health_width, self.__health_bar_height))
 
 class FallingObject:
-    def __init__(self, key_code, note_type):
-        self.__radius = 20  # Radius for collision detection
-        self.__speed = 5  # Falling speed, adjust for slower fall
-        self.__x = SCREEN_WIDTH // 2  # Spawn from the center
-        self.__y = -self.__radius  # Start above the screen
-        self.__key_code = key_code
-        self.__note_type = note_type
-        self.__sprite = self.get_sprite_for_note_type(note_type)
-
-        self.__rect = pygame.Rect(self.__x, self.__y, self.__sprite.get_width(), self.__sprite.get_height())
-
-    def get_sprite_for_note_type(self, note_type):
-        """Choose the appropriate sprite for each falling object"""
-        if note_type == "jump":
-            return pygame.image.load("spikes.png").convert_alpha()  # Adjusted size of the spikes
-        elif note_type == "dodge":
-            return pygame.image.load("wall.png").convert_alpha()  # Adjusted size of the enemy
-        elif note_type == "slide":
-            return pygame.image.load("bird_cropped.png").convert_alpha()  # Adjusted size of the wall
-        elif note_type == "attack":
-            return pygame.image.load("enemy_cropped.png").convert_alpha()  # Adjusted size of the bird
-
+    def __init__(self, key_code, note_type, key_x):
+        self.key_code = key_code
+        self.note_type = note_type
+        self.x = key_x
+        self.y = -50  # Start above the screen
+        self.speed = 5  # Adjust this value to change falling speed
+        
+        # Load appropriate image based on note type
+        self.image = self._load_note_image()
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (self.x, self.y)
+    
+    def _load_note_image(self):
+        """Load different images for different note types"""
+        image_paths = {
+            "jump": "spikes.png",
+            "dodge": "wall.png",
+            "slide": "bird_cropped.png",
+            "attack": "enemy_cropped.png"
+        }
+        try:
+            image = pygame.image.load(image_paths[self.note_type]).convert_alpha()
+            return pygame.transform.scale(image, (50, 50))  # Resize if needed
+        except:
+            # Fallback if image loading fails
+            surf = pygame.Surface((50, 50), pygame.SRCALPHA)
+            color = {
+                "jump": (255, 0, 0),    # Red
+                "dodge": (0, 255, 0),    # Green
+                "slide": (0, 0, 255),    # Blue
+                "attack": (255, 255, 0)   # Yellow
+            }.get(self.note_type, (255, 255, 255))
+            pygame.draw.circle(surf, color, (25, 25), 25)
+            return surf
+    
     def update(self):
-        self.__y += self.__speed  # Make objects fall at the same speed
-        self.__rect.topleft = (self.__x, self.__y)
-
-    def draw(self, surface):
-        """Draw the current sprite on the screen"""
-        surface.blit(self.__sprite, (self.__x - self.__sprite.get_width() // 2, self.__y))  # Center the objects
-
-    def collides_with(self, player):
-        """Check if the falling object collides with the player"""
-        player_rect = player.rect
-        if self.__rect.colliderect(player_rect):
-            return True
-        return False
-
+        """Update the object's position each frame"""
+        self.y += self.speed
+        self.rect.y = self.y
+    
+    def draw(self, screen):
+        """Draw the object on the screen"""
+        screen.blit(self.image, self.rect)
+    
     def get_key_code(self):
-        return self.__key_code  # Get the key code associated with this falling object
-
-    def get_y(self):
-        return self.__y
-
-    def get_radius(self):
-        return self.__radius
-
-    def get_rect(self):
-        return self.__rect
-
-    def get_note_type(self):
-        return self.__note_type
-
-
+        return self.key_code
