@@ -7,12 +7,6 @@ import os
 from gameClasses import Key, Player, FallingObject
 from PIL import Image, ImageTk  
 
-#Need to:
-# - resize objects
-# - make them smaller
-# - able to be destroyed 
-# - fall from middel
-
 # Init pygame and mixer
 mixer.init()
 pygame.init()
@@ -68,6 +62,26 @@ def load_music_options():
         os.makedirs("music")
     return [f for f in os.listdir("music") if f.endswith((".mp3", ".wav"))]
 
+def display_game_over_screen(surface, score):
+    """Display the game over screen with score"""
+    font = pygame.font.SysFont("Arial", 72)
+    text = font.render("Game Over", True, (255, 0, 0))  # Red text for "Game Over"
+    text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100))
+    surface.blit(text, text_rect)
+
+    # Display the score
+    score_font = pygame.font.SysFont("Arial", 36)
+    score_text = score_font.render(f"Score: {score}", True, (255, 255, 255))  # White score text
+    score_text_rect = score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    surface.blit(score_text, score_text_rect)
+
+    pygame.display.update()
+
+    # Wait for a few seconds before allowing restart or exit
+    pygame.time.wait(2000)  # Wait 2 seconds before exiting
+
+    pygame.quit()  # Close the game after showing "Game Over"
+
 def run_game():
     # Set up the screen and clock
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -83,11 +97,14 @@ def run_game():
 
     keys = create_keys(sprites)
 
-    # Create the player object
+    # Create the player object (closer to the buttons)
     front_sprite = "processed_sprites/chr1_fr1_no_border.gif"
     back_sprite_1 = "processed_sprites/chr1_bk1_no_border.gif"
     back_sprite_2 = "processed_sprites/chr1_bk2_no_border.gif"
     player = Player(selected_color, front_sprite, back_sprite_1, back_sprite_2, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    # Adjust player position to be closer to the buttons
+    player.rect.y = SCREEN_HEIGHT - 100  # Move player up closer to buttons
 
     clock = pygame.time.Clock()
 
@@ -109,71 +126,75 @@ def run_game():
     # Create the falling objects
     falling_objects = []
     object_spawn_timer = 0
-    object_spawn_interval = 120
-    beat_interval = 500
+    object_spawn_interval = 30  # Slow spawn rate (1 object every 3 seconds at 60 FPS)
+    beat_interval = 500  # ms (adjust for music tempo)
     last_beat_time = pygame.time.get_ticks()
 
     score = 0
-    running = True
-
-    while running:
-        # Draw the background image first
-        screen.blit(background_image, (0, 0))
-
-        # Update falling objects and draw them
-        font = pygame.font.SysFont("Arial", 36)
-        score_text = font.render(f"Score: {score}", True, (255, 255, 255))
-        screen.blit(score_text, (20, 20))
-
-        object_spawn_timer += 1
-        if object_spawn_timer >= object_spawn_interval:
-            falling_objects.append(FallingObject(keys[random.randint(0, 3)].key_code, random.choice(["jump", "dodge", "slide", "attack"])))
-            object_spawn_timer = 0
-
-        for obj in falling_objects:
-            obj.update()
-            obj.draw(screen)
-
-        # Remove objects that fall off the screen
-        falling_objects = [obj for obj in falling_objects if obj.get_y() < SCREEN_HEIGHT + obj.get_radius()]
-
-        # Check for beat timing and spawn new objects
-        current_time = pygame.time.get_ticks()
-        if current_time - last_beat_time >= beat_interval:
-            falling_objects.append(FallingObject(keys[random.randint(0, 3)].key_code, random.choice(["jump", "dodge", "slide", "attack"])))
-            last_beat_time = current_time
-
-        # Check if the player presses the correct key while the object is in range
-        pressed = pygame.key.get_pressed()  # Get the keys that are pressed
-        for obj in falling_objects[:]:
-            obj.update()
-            obj.draw(screen)
-
-            if obj.collides_with(player):  # Check if the object is within the player's range
-                if pressed[obj.get_key_code()]:  # Check if the correct key is pressed
-                    falling_objects.remove(obj)  # Remove the object from the list
-                    score += 10  # Increase score when the correct key is pressed
-
-        # Draw the player health bar
-        player.draw_health_bar(screen)
-
+    game_over = False
+    
+    # Main game loop
+    while not game_over:
+        # Handle events first
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 mixer.music.stop()
-                running = False
+                game_over = True
             elif event.type == pygame.KEYDOWN:
                 player.handle_keypress(event.key)
+                # Check all objects for matching key press
+                for obj in falling_objects[:]:
+                    if event.key == obj.get_key_code():
+                        falling_objects.remove(obj)
+                        score += 10
 
+        # Update game state
+        # Spawn objects
+        object_spawn_timer += 1
+        if object_spawn_timer >= object_spawn_interval:
+            random_key = keys[random.randint(0, 3)]
+            note_type = random.choice(["jump", "dodge", "slide", "attack"])
+            falling_objects.append(FallingObject(
+                key_code=random_key.key_code,
+                note_type=note_type,
+                key_x=random_key.get_X()
+            ))
+            object_spawn_timer = 0
+
+        # Update objects
+        for obj in falling_objects[:]:
+            obj.update()
+            if obj.rect.top > player.rect.top - 20:  # Using rect for collision
+                falling_objects.remove(obj)
+                player.set_health(player.get_health() - 10)
+
+        # Update player
         player.update()
+        
+        # Draw everything
+        screen.blit(background_image, (0, 0))
+        
+        # Display score
+        font = pygame.font.SysFont("Arial", 36)
+        score_text = font.render(f"Score: {score}", True, WHITE)
+        screen.blit(score_text, (20, 20))
+        
+        # Draw red line
+        red_line_y = player.rect.top - 20
+        pygame.draw.line(screen, (255, 0, 0), (0, red_line_y), (SCREEN_WIDTH, red_line_y), 5)
+        
+        # Draw objects
+        for obj in falling_objects:
+            obj.draw(screen)
+        
+        # Draw player and keys
         player.draw(screen)
-
+        pressed = pygame.key.get_pressed()
         for key in keys:
             key.draw(screen, pressed[key.key_code])
 
         pygame.display.update()
         clock.tick(60)
-
-    pygame.quit()
 
 def show_tkinter_menu():
     global selected_color, selected_music, selected_music_label, selected_sprite
